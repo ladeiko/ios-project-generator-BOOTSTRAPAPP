@@ -1,0 +1,25 @@
+.PHONY: all
+
+MODELS := $(wildcard ${PROJECT_DIR}/${TARGET_NAME}/Sources/Entities/Models/*.xcdatamodeld)
+
+UPDATES := #
+
+THIS_MAKE_FILE := $(lastword $(MAKEFILE_LIST))
+
+define GenerateModelTarget
+
+$(info ">"$(strip $(1)))
+$(info "="$(notdir $(basename $(1))))
+
+${PROJECT_DIR}/${TARGET_NAME}/Sources/Entities/Database/.$(notdir $(basename $(1))).modelUpdated: $(strip $(1)) ${THIS_MAKE_FILE}
+	./mogenerator --swift --base-class DBObject --template-path ./PONSOTemplates --model "$$<" --machine-dir "${PROJECT_DIR}/${TARGET_NAME}/Sources/Entities/Database/Generated/" --human-dir "${PROJECT_DIR}/${TARGET_NAME}/Sources/Entities/Database/" --template-var arc=true
+	touch ${PROJECT_DIR}/${TARGET_NAME}/Sources/Entities/Database/.$(notdir $(basename $(1))).modelUpdated
+
+UPDATES += ${PROJECT_DIR}/${TARGET_NAME}/Sources/Entities/Database/.$(notdir $(basename $(1))).modelUpdated
+
+endef
+
+$(foreach t,$(MODELS),$(eval $(call GenerateModelTarget, $(t))))
+
+all: $(UPDATES)
+

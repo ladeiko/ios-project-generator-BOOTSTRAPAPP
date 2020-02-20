@@ -1,0 +1,394 @@
+#!/bin/bash
+
+THIS_SCRIPT_PATH=`cd "$(dirname "$0")" && pwd`
+
+echo ""
+echo "---------------------------------------------------------------------------"
+echo "BOOTSTRAPAPP Tooler (C) Siarhei Ladzeika 2018-present"
+echo "Siarhei Ladzeika <sergey.ladeiko@gmail.com>"
+echo "---------------------------------------------------------------------------"
+echo ""
+
+command -v generamba>/dev/null || { echo "ERROR: generamba not found"; exit 1; }
+[ -n "$(generamba version | grep -o ladeiko)" ] || { echo "ERROR: invalid generamba, please install generamba from https://github.com/ladeiko/Generamba"; exit 1; }
+
+function replaceTextInFile() {
+    local FROM="$1"
+    local TO="$2"
+    local WHERE="$3"
+    [ -f "$WHERE" ] || return
+    ruby \
+        -e "text = File.read('$WHERE')" \
+        -e "new_contents = text.gsub(%r{$FROM}m, '$TO')" \
+        -e "File.open('$WHERE', 'w') { |file| file.puts new_contents }"
+}
+
+function usage() {
+    local SCRIPT_NAME=$(basename $0)
+    echo ""
+    echo "Usage"
+    echo ""
+    echo " * Run application tests"
+    echo "  $SCRIPT_NAME test"
+    echo ""
+    echo " * List UI templates"
+    echo "  $SCRIPT_NAME ui-templates-list"
+    echo ""
+    echo " * List services templates"
+    echo "  $SCRIPT_NAME service-templates-list"
+    echo ""
+    echo " * Update templates from remote repository"
+    echo "  $SCRIPT_NAME templates-update"
+    echo ""
+    echo " * Generate UI module"
+    echo "  $SCRIPT_NAME ui-gen Name Template"
+    echo ""
+    echo " * Generate UI root module"
+    echo "  $SCRIPT_NAME ui-gen-root Template"
+    echo ""    
+    echo " * Generate service"
+    echo "  $SCRIPT_NAME service-gen Name Template"
+    echo ""
+    echo " * Generate config value"
+    echo "  $SCRIPT_NAME config-gen Name Type"    
+    echo ""
+    echo " * Build DEBUG version of application and upload it to Hockey"
+    echo "  $SCRIPT_NAME hockey"
+    echo ""
+}
+
+function setupTemplates() {
+    TEMPLATES_MODIFICATION_TIME_FILE=$(find "$THIS_SCRIPT_PATH" -name ".TemplatesInstalled" -maxdepth 1 -mtime -1)
+    [ -z "$TEMPLATES_MODIFICATION_TIME_FILE" ] || return
+    echo "Installing generamba templates..."
+    ( cd "$THIS_SCRIPT_PATH" && generamba template install && touch "$THIS_SCRIPT_PATH/.TemplatesInstalled" )
+}
+
+if [ -z "$1" ]; then
+    declare -a ACTION_OPTIONS
+
+    GENERATE_UI_ROOT_MENU="Generate UI root module"
+    GENERATE_UI_MENU="Generate UI module"
+    GENERATE_SERVICE_MENU="Generate service"
+    GENERATE_CONFIG_VALUE="Generate config service value"
+
+    ACTION_OPTIONS[${#ACTION_OPTIONS[*]}]=$GENERATE_UI_ROOT_MENU;
+    ACTION_OPTIONS[${#ACTION_OPTIONS[*]}]=$GENERATE_UI_MENU;
+    ACTION_OPTIONS[${#ACTION_OPTIONS[*]}]=$GENERATE_SERVICE_MENU;
+    ACTION_OPTIONS[${#ACTION_OPTIONS[*]}]=$GENERATE_CONFIG_VALUE;
+    select opt in "${ACTION_OPTIONS[@]}"; do
+        case $opt in
+            $GENERATE_UI_MENU | $GENERATE_UI_ROOT_MENU )
+                
+                if [ "$opt" == "$GENERATE_UI_ROOT_MENU" ]; then
+                    ACTION=ui-gen-root
+                    NAME=Root
+                else
+                    ACTION=ui-gen
+                    echo "Enter UI module name [e.g: Welcome, Draw...]:"
+                    read NAME
+                fi
+
+                setupTemplates
+
+                TEMPLATES=$(ls "$THIS_SCRIPT_PATH/Templates" | grep -v service)
+
+                declare -a TEMPLATE_OPTIONS
+                for T in $TEMPLATES; do
+                    TEMPLATE_OPTIONS[${#TEMPLATE_OPTIONS[*]}]="$T";
+                done
+
+                select opt in "${TEMPLATE_OPTIONS[@]}"; do
+                    if [ -n "$opt" ]; then
+                        TEMPLATE=$opt
+                        break
+                    fi
+                done
+
+                break
+                ;;
+            
+            $GENERATE_SERVICE_MENU )
+                ACTION=service-gen
+
+                echo "Enter service name [e.g: Audio, Database, Reader...]:"
+                read NAME
+
+                setupTemplates
+
+                TEMPLATES=$(ls "$THIS_SCRIPT_PATH/Templates" | grep service | grep -v redux)
+
+                declare -a TEMPLATE_OPTIONS
+                for T in $TEMPLATES; do
+                    TEMPLATE_OPTIONS[${#TEMPLATE_OPTIONS[*]}]="$T";
+                done
+
+                select opt in "${TEMPLATE_OPTIONS[@]}"; do
+                    if [ -n "$opt" ]; then
+                        TEMPLATE=$opt
+                        break
+                    fi
+                done
+                
+                break 
+                ;;
+
+            $GENERATE_CONFIG_VALUE )
+                ACTION=config-gen
+
+                echo "Enter value name [e.g: enablePlaying, showTutorial...]:"
+                read -r NAME
+
+                TEMPLATES="bool int double string intEnum stringEnum"
+
+                declare -a TEMPLATE_OPTIONS
+                for T in $TEMPLATES; do
+                    TEMPLATE_OPTIONS[${#TEMPLATE_OPTIONS[*]}]="$T";
+                done
+
+                select opt in "${TEMPLATE_OPTIONS[@]}"; do
+                    if [ -n "$opt" ]; then
+                        TEMPLATE=$opt
+                        break
+                    fi
+                done
+
+                case $TEMPLATE in 
+                    intEnum )
+                        echo "Enter enum values, like NAME1=VALUE1 NAME2=VALUE2 ... or leave empty [e.g: show=0 hide=1 ...]:"
+                        read -r ENUM_VALUES
+                    ;;
+                    stringEnum )
+                        echo "Enter enum values, like NAME1=VALUE1 NAME2=VALUE2 ... or leave empty [e.g: show=myValue1 hide=myValue2 ...]:"
+                        read -r ENUM_VALUES
+                    ;;
+                esac
+
+                break
+                ;;
+        esac    
+    done
+else
+    ACTION=$1
+    shift
+fi
+
+case $ACTION in 
+
+    ui-templates-list)
+        setupTemplates
+        echo "UI templates found:"
+        ls "$THIS_SCRIPT_PATH/Templates" | grep -v service | sed 's/^/ * /g'
+        echo ""
+    ;;
+
+    service-templates-list)
+        setupTemplates
+        echo "Services templates found:"
+        ls "$THIS_SCRIPT_PATH/Templates" | grep service | sed 's/^/ * /g'
+        echo ""
+    ;;
+
+    templates-update)
+        ( echo "Updating templates repo..." && cd "$THIS_SCRIPT_PATH" && generamba template install )
+    ;;
+
+    ui-gen | ui-gen-root)
+        case $ACTION in
+            ui-gen-root) 
+            [ -n "$NAME" ] || NAME=Root
+            [ -n "$TEMPLATE" ] || TEMPLATE=$1
+            ;;
+            *)
+            [ -n "$NAME" ] || NAME=$1
+            [ -n "$TEMPLATE" ] || TEMPLATE=$2
+             ;;
+        esac
+
+        [ -n "$NAME" ] || { echo "ERROR: Invalid module name"; exit 1; }
+        [ -n "$TEMPLATE" ] || TEMPLATE=default
+
+        NAME=$(ruby -e "a='$NAME'; print a[0].capitalize + a[1..-1]")
+
+        EXTRA=
+        if [ "$NAME" == "Root" ]; then
+            EXTRA="$EXTRA extended_configurator_create:true"
+        fi
+        
+        (cd "$THIS_SCRIPT_PATH" && generamba gen "$NAME" "$TEMPLATE" --custom_parameters extended_configure:true extended_configure_vars:services=Services embeddable_extended_configure_vars:services=Services $EXTRA)
+
+        replaceTextInFile ':[[:space:]]*class ' ': Presenter ' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Modules/$NAME/Presenter/${NAME}ModuleInput.swift"
+        replaceTextInFile ':[[:space:]]*class ' ': Interactor ' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Modules/$NAME/Interactor/${NAME}InteractorInput.swift"
+        replaceTextInFile ':[[:space:]]*class ' ': Router ' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Modules/$NAME/Router/${NAME}RouterInput.swift"
+
+        # replaceTextInFile '// MARK: - Vars' '// MARK: - Vars\n\\n    var services: Services!\\n\\n' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Modules/$NAME/Interactor/${NAME}Interactor.swift"
+
+        if [ "$NAME" == "Root" ]; then
+            replaceTextInFile '// *<DEFAULT ROOT CONTROLLER>' '' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/App/App.swift"
+            replaceTextInFile '// *<DEFAULT CONTROLLER BEGIN>.+?<DEFAULT CONTROLLER END>' '__TEMPORARY_REPLACE_STRING__' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/App/App.swift"
+            sed -i '' -E '/^[[:space:]]*__TEMPORARY_REPLACE_STRING__$/d' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/App/App.swift"
+        fi
+    ;;
+
+    service-gen)
+        [ -n "$NAME" ] || NAME=$1
+        [ -n "$TEMPLATE" ] || TEMPLATE=$2
+        [ -n "$NAME" ] || { echo "ERROR: Invalid service name"; exit 1; }
+        [ -n "$TEMPLATE" ] || TEMPLATE=service
+
+        NAME=$(ruby -e "a='$NAME'; print a[0].capitalize + a[1..-1]")
+
+        (cd "$THIS_SCRIPT_PATH" && generamba gen "$NAME" "$TEMPLATE" --module_path "BOOTSTRAPAPP/Sources/Services" --test_path "BOOTSTRAPAPPTests/Services")
+        
+        grep "register('${NAME}'ServiceImpl()" "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/ServicesImpl.swift" || \
+                perl -pi -e 's/<Register services here>\n/<Register services here>\n\n        try! register('${NAME}'ServiceImpl() as '${NAME}'Service)/' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/ServicesImpl.swift"
+    ;;
+
+    config-gen)
+        [ -n "$NAME" ] || NAME=$1
+        [ -n "$TEMPLATE" ] || TEMPLATE=$2
+        [ -n "$NAME" ] || { echo "ERROR: Invalid value name"; exit 1; }
+        [ -n "$TEMPLATE" ] || { echo "ERROR: Invalid value type"; exit 1; }
+
+        CAPITALIZED_NAME=$(ruby -e "a='$NAME'; print a[0].capitalize + a[1..-1]")
+        NAME=$(ruby -e "s='$NAME'; s[0] = s[0].downcase; puts s")
+
+        grep 'case ${NAME} = "'${NAME}'"' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/Helpers/ConfigServiceValues.swift" || \
+                perl -pi -e 's/<Register new config cases here>\n+/<Register new config cases here>\n\n    case '${NAME}' = "'${NAME}'"/' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/Helpers/ConfigServiceValues.swift"
+
+        case $TEMPLATE in
+            bool)
+                grep "name: .${NAME}," "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/Helpers/ConfigServiceValueDescriptors.swift" || \
+                        perl -pi -e 's/<Register new config descriptors here>\n+/<Register new config descriptors here>\n\n    ConfigServiceBoolValueDescriptor(name: .'${NAME}', defaultValue: false),/' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/Helpers/ConfigServiceValues.swift"
+
+                grep "var ${NAME}" "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigService.swift" || \
+                    perl -pi -e 's/ <Register new config property here>\n+/ <Register new config property here>\n\n    var '${NAME}': Bool { get }/' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigService.swift"
+
+                grep "var ${NAME}" "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigServiceImpl.swift" || \
+                    perl -pi -e 's/ <Register new config properties implementations here>\n+/ <Register new config properties implementations here>\n\n    var '${NAME}': Bool {\n        get {\n            return allValues[.'${NAME}'] as! Bool\n        }\n    }\n/' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigServiceImpl.swift"
+                ;;
+
+            int)
+                grep "name: .${NAME}," "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/Helpers/ConfigServiceValueDescriptors.swift" || \
+                        perl -pi -e 's/<Register new config descriptors here>\n+/<Register new config descriptors here>\n\n    ConfigServiceIntValueDescriptor(name: .'${NAME}', defaultValue: 0),/' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/Helpers/ConfigServiceValues.swift"
+
+                grep "var ${NAME}" "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigService.swift" || \
+                    perl -pi -e 's/ <Register new config property here>\n+/ <Register new config property here>\n\n    var '${NAME}': Int { get }/' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigService.swift"                        
+
+                grep "var ${NAME}" "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigServiceImpl.swift" || \
+                    perl -pi -e 's/ <Register new config properties implementations here>\n+/ <Register new config properties implementations here>\n\n    var '${NAME}': Int {\n        get {\n            return allValues[.'${NAME}'] as! Int\n        }\n    }\n/' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigServiceImpl.swift"                    
+                ;;
+
+            double)
+                grep "name: .${NAME}," "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/Helpers/ConfigServiceValueDescriptors.swift" || \
+                        perl -pi -e 's/<Register new config descriptors here>\n+/<Register new config descriptors here>\n\n    ConfigServiceDoubleValueDescriptor(name: .'${NAME}', defaultValue: 0),/' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/Helpers/ConfigServiceValues.swift"
+
+                grep "var ${NAME}" "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigService.swift" || \
+                    perl -pi -e 's/ <Register new config property here>\n+/ <Register new config property here>\n\n    var '${NAME}': Double { get }/' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigService.swift"                        
+
+                grep "var ${NAME}" "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigServiceImpl.swift" || \
+                    perl -pi -e 's/ <Register new config properties implementations here>\n+/ <Register new config properties implementations here>\n\n    var '${NAME}': Double {\n        get {\n            return allValues[.'${NAME}'] as! Double\n        }\n    }\n/' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigServiceImpl.swift"                    
+                ;;
+
+            string)
+                grep "name: .${NAME}," "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/Helpers/ConfigServiceValueDescriptors.swift" || \
+                        perl -pi -e 's/<Register new config descriptors here>\n+/<Register new config descriptors here>\n\n    ConfigServiceStringValueDescriptor(name: .'${NAME}', defaultValue: ""),/' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/Helpers/ConfigServiceValues.swift"
+
+                grep "var ${NAME}" "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigService.swift" || \
+                    perl -pi -e 's/ <Register new config property here>\n+/ <Register new config property here>\n\n    var '${NAME}': String { get }/' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigService.swift"                        
+
+                grep "var ${NAME}" "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigServiceImpl.swift" || \
+                    perl -pi -e 's/ <Register new config properties implementations here>\n+/ <Register new config properties implementations here>\n\n    var '${NAME}': String {\n        get {\n            return allValues[.'${NAME}'] as! String\n        }\n    }\n/' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigServiceImpl.swift"    
+                ;;
+
+            intEnum)
+
+                DEFAULT_ENUM_VALUE=todo
+                ENUM_CASES="case todo = 0\\n"
+
+                if [ -n "$ENUM_VALUES" ]; then
+                    DEFAULT_ENUM_VALUE=$(ruby -e "puts '${ENUM_VALUES}'.split(' ').first.split('=')[0]") 
+                    ENUM_CASES=$(ruby -e "puts '${ENUM_VALUES}'.split(' ').map { |v| '    case ' + v.split('=').join(' = ') + ''  }.join('\\n')")
+                fi
+
+                grep "name: .${NAME}," "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/Helpers/ConfigServiceValueDescriptors.swift" || \
+                        perl -pi -e 's/<Register new config descriptors here>\n+/<Register new config descriptors here>\n\n    ConfigServiceEnumValueDescriptor<'${CAPITALIZED_NAME}'>(name: .'${NAME}', defaultValue: .'$DEFAULT_ENUM_VALUE'),/' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/Helpers/ConfigServiceValues.swift"
+
+                grep "enum ${NAME}" "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigService.swift" || \
+                    perl -pi -e 's/ <Register new config enum here>\n+/ <Register new config enum here>\n\nenum '${CAPITALIZED_NAME}': Int {\n'"$ENUM_CASES"'\n}\n/' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigService.swift"                
+
+                grep "var ${NAME}" "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigService.swift" || \
+                    perl -pi -e 's/ <Register new config property here>\n+/ <Register new config property here>\n\n    var '${NAME}': '${CAPITALIZED_NAME}' { get }/' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigService.swift"                    
+
+                grep "var ${NAME}" "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigServiceImpl.swift" || \
+                    perl -pi -e 's/ <Register new config properties implementations here>\n+/ <Register new config properties implementations here>\n\n    var '${NAME}': '${CAPITALIZED_NAME}' {\n        get {\n            return allValues[.'${NAME}'] as! '${CAPITALIZED_NAME}'\n        }\n    }\n/' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigServiceImpl.swift"                    
+                ;;
+
+            stringEnum)
+
+                DEFAULT_ENUM_VALUE=todo
+                ENUM_CASES="case todo = \"todo\"\\n"
+
+                if [ -n "$ENUM_VALUES" ]; then
+                    DEFAULT_ENUM_VALUE=$(ruby -e "puts '${ENUM_VALUES}'.split(' ').first.split('=')[0]") 
+                    ENUM_CASES=$(ruby -e "puts '${ENUM_VALUES}'.split(' ').map { |v| d=v.split('='); '    case ' + d[0] + ' = \"' + d[1] + '\"'  }.join('\\n')")
+                fi
+
+                grep "name: .${NAME}," "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/Helpers/ConfigServiceValueDescriptors.swift" || \
+                        perl -pi -e 's/<Register new config descriptors here>\n+/<Register new config descriptors here>\n    ConfigServiceEnumValueDescriptor<'${CAPITALIZED_NAME}'>(name: .'${NAME}', defaultValue: .'$DEFAULT_ENUM_VALUE'),/' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/Helpers/ConfigServiceValues.swift"
+
+                grep "enum ${NAME}" "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigService.swift" || \
+                    perl -pi -e 's/ <Register new config enum here>\n+/ <Register new config enum here>\n\nenum '${CAPITALIZED_NAME}': String {\n'"$ENUM_CASES"'\n}\n/' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigService.swift"                
+
+                grep "var ${NAME}" "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigService.swift" || \
+                    perl -pi -e 's/ <Register new config property here>\n+/ <Register new config property here>\n\n    var '${NAME}': '${CAPITALIZED_NAME}' { get }/' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigService.swift"                                                        
+                    
+                grep "var ${NAME}" "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigServiceImpl.swift" || \
+                    perl -pi -e 's/ <Register new config properties implementations here>\n+/ <Register new config properties implementations here>\n\n    var '${NAME}': '${CAPITALIZED_NAME}' {\n        get {\n            return allValues[.'${NAME}'] as! '${CAPITALIZED_NAME}'\n        }\n    }\n/' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Services/Config/ConfigServiceImpl.swift"                        
+                ;;
+        esac
+    ;;
+
+    test)
+        ( cd "$THIS_SCRIPT_PATH" && xcodebuild test -scheme BOOTSTRAPAPP_Debug -workspace BOOTSTRAPAPP.xcworkspace/ -destination 'platform=iOS Simulator,name=iPhone 8' )
+    ;;
+
+    hockey)
+        rm -rf "$THIS_SCRIPT_PATH/.build"
+        mkdir -p "$THIS_SCRIPT_PATH/.build"
+        [ -f "$THIS_SCRIPT_PATH/.team_id" ] || { echo "ERROR: File $THIS_SCRIPT_PATH/.team_id not found"; exit 1; }
+        TEAM_ID=$(cat "$THIS_SCRIPT_PATH/.team_id")
+        [ -n "$TEAM_ID" ] || { echo "ERROR: Invalid team id"; exit 1; }
+        cat > "$THIS_SCRIPT_PATH/.build/exportOptions.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>ad-hoc</string>
+    <key>teamID</key>
+    <string>$TEAM_ID</string>
+    <key>compileBitcode</key>
+    <false/>
+    <key>thinning</key>
+	<string>&lt;none&gt;</string>
+    <key>stripSwiftSymbols</key>
+	<true/>
+</dict>
+</plist>
+EOF
+        ( cd "$THIS_SCRIPT_PATH" && xcodebuild archive -scheme BOOTSTRAPAPP_Debug -workspace BOOTSTRAPAPP.xcworkspace/ -sdk iphoneos -archivePath "$THIS_SCRIPT_PATH/.build/BOOTSTRAPAPP.xcarchive" || { rm -rf "$THIS_SCRIPT_PATH/.build"; exit 1; } )
+        ( cd "$THIS_SCRIPT_PATH" && xcodebuild -exportArchive -archivePath "$THIS_SCRIPT_PATH/.build/BOOTSTRAPAPP.xcarchive" -exportOptionsPlist "$THIS_SCRIPT_PATH/.build/exportOptions.plist" -exportPath "$THIS_SCRIPT_PATH/.build" || { rm -rf "$THIS_SCRIPT_PATH/.build"; exit 1; } )
+        command -v puck || { echo "ERROR: puck not found"; exit 1; }
+        [ -f "$THIS_SCRIPT_PATH/.hockey_api_token" ] || { echo "ERROR: File $THIS_SCRIPT_PATH/.hockey_api_token not found"; exit 1; }
+        HOCKEY_API_TOKEN=$(cat "$THIS_SCRIPT_PATH/.hockey_api_token")
+        [ -n "$TEAM_ID" ] || { echo "ERROR: Invalid hockey api token"; exit 1; }
+        puck -force=false -api_token=$HOCKEY_API_TOKEN -notify=true "$THIS_SCRIPT_PATH/.build/BOOTSTRAPAPP_Debug.ipa"
+    ;;
+
+    help | *)
+        echo "ERROR: Unknown action '$ACTION'"
+        usage
+        exit 1
+    ;;
+esac

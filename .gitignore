@@ -1,0 +1,8 @@
+/Pods/
+Templates
+.build
+.hockey_api_token
+.team_id
+*.TemplatesInstalled
+
+/.DS_Store

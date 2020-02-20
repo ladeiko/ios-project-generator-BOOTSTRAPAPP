@@ -1,0 +1,55 @@
+.PHONY: all
+
+ICONS := #
+
+THIS_MAKE_FILE := $(lastword $(MAKEFILE_LIST))
+
+/usr/local/bin/convert:
+	echo "Please install ImageMagick with 'brew install imagemagick'" && exit 1
+
+define AppIconGenerator
+
+ICONS += ${PROJECT_DIR}/${TARGET_NAME}/Resources/App.xcassets/AppIcon_Release.appiconset/$(2).png
+
+${PROJECT_DIR}/${TARGET_NAME}/Resources/App.xcassets/AppIcon_Release.appiconset/$(2).png: ${PROJECT_DIR}/${TARGET_NAME}/Icon/AppIcon.png ${PROJECT_DIR}/${INFOPLIST_FILE} ${THIS_MAKE_FILE} /usr/local/bin/convert
+	convert "$$<" -resize "$(1)x$(1)" "$$@"
+
+ICONS += ${PROJECT_DIR}/${TARGET_NAME}/Resources/App.xcassets/AppIcon_Debug.appiconset/$(2).png
+
+${PROJECT_DIR}/${TARGET_NAME}/Resources/App.xcassets/AppIcon_Debug.appiconset/$(2).png: ${PROJECT_DIR}/${TARGET_NAME}/Icon/AppIcon.png ${PROJECT_DIR}/${INFOPLIST_FILE} ${THIS_MAKE_FILE} /usr/local/bin/convert
+	convert "$$<" -resize $(1)x$(1) - | convert -background '#0008' -gravity center -fill white -size $(1)x`ruby -e 'puts ($(1).0 * 30/100).ceil'` caption:`/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "${PROJECT_DIR}/${INFOPLIST_FILE}"`d - +swap -gravity south -composite "$$@"
+
+endef
+
+$(eval $(call AppIconGenerator,20,Icon-20))
+$(eval $(call AppIconGenerator,40,Icon-20@2x))
+$(eval $(call AppIconGenerator,60,Icon-20@3x))
+
+$(eval $(call AppIconGenerator,29,Icon-29))
+$(eval $(call AppIconGenerator,58,Icon-29@2x))
+$(eval $(call AppIconGenerator,87,Icon-29@3x))
+
+$(eval $(call AppIconGenerator,40,Icon-40))
+$(eval $(call AppIconGenerator,80,Icon-40@2x))
+$(eval $(call AppIconGenerator,120,Icon-40@3x))
+
+$(eval $(call AppIconGenerator,120,Icon-60@2x))
+$(eval $(call AppIconGenerator,180,Icon-60@3x))
+
+$(eval $(call AppIconGenerator,57,Icon-57))
+$(eval $(call AppIconGenerator,114,Icon-57@2x))
+
+$(eval $(call AppIconGenerator,72,Icon-72))
+$(eval $(call AppIconGenerator,144,Icon-72@2x))
+
+$(eval $(call AppIconGenerator,76,Icon-76))
+$(eval $(call AppIconGenerator,152,Icon-76@2x))
+
+$(eval $(call AppIconGenerator,50,Icon-50))
+$(eval $(call AppIconGenerator,100,Icon-50@2x))
+
+$(eval $(call AppIconGenerator,167,Icon-83.5@2x))
+
+$(eval $(call AppIconGenerator,1024,iTunesArtwork))
+
+all: $(ICONS)

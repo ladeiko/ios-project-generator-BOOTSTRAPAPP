@@ -1,0 +1,5 @@
+# The format of the file is nearly the same as a .gitignore file. 
+# Wildcards like * and ** are supported and you can add comments 
+# by starting a line with a #. Explicitly including single or 
+# multiple files that are otherwise globally ignored is also 
+# supported by starting a pattern with !.

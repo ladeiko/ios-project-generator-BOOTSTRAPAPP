@@ -1,0 +1,12 @@
+strings:
+  inputs: BOOTSTRAPAPP/Localization/en.lproj/Localizable.strings
+  outputs:
+    - templateName: structured-swift4
+      output: BOOTSTRAPAPP/Resources/Generated/SwiftGen/strings.swift
+xcassets:
+  inputs:
+    - BOOTSTRAPAPP/Resources/App.xcassets
+    - BOOTSTRAPAPP/Resources/Shared.xcassets
+  outputs:
+    - templateName: swift4
+      output: BOOTSTRAPAPP/Resources/Generated/SwiftGen/assets-images.swift

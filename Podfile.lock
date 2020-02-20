@@ -1,0 +1,78 @@
+PODS:
+  - Crashlytics (3.14.0):
+    - Fabric (~> 1.10.2)
+  - Fabric (1.10.2)
+  - MagicalRecord (2.3.2):
+    - MagicalRecord/Core (= 2.3.2)
+  - MagicalRecord/Core (2.3.2)
+  - OHHTTPStubs (9.0.0):
+    - OHHTTPStubs/Default (= 9.0.0)
+  - OHHTTPStubs/Core (9.0.0)
+  - OHHTTPStubs/Default (9.0.0):
+    - OHHTTPStubs/Core
+    - OHHTTPStubs/JSON
+    - OHHTTPStubs/NSURLSession
+    - OHHTTPStubs/OHPathHelpers
+  - OHHTTPStubs/JSON (9.0.0):
+    - OHHTTPStubs/Core
+  - OHHTTPStubs/NSURLSession (9.0.0):
+    - OHHTTPStubs/Core
+  - OHHTTPStubs/OHPathHelpers (9.0.0)
+  - OHHTTPStubs/Swift (9.0.0):
+    - OHHTTPStubs/Default
+  - OnDeallocateX (1.0.0)
+  - R.swift (5.1.0):
+    - R.swift.Library (~> 5.1.0)
+  - R.swift.Library (5.1.0)
+  - SwiftGen (6.1.0)
+  - SwiftSelfAware (1.0.5)
+  - ViperMcFlurrySwiftFix (1.0.1):
+    - SwiftSelfAware
+  - ViperMcFlurryX (1.12.1):
+    - ViperMcFlurrySwiftFix
+  - ViperServices (1.4.0)
+
+DEPENDENCIES:
+  - Crashlytics
+  - Fabric
+  - MagicalRecord
+  - OHHTTPStubs
+  - OHHTTPStubs/Swift
+  - OnDeallocateX
+  - R.swift (>= 5.0.0)
+  - SwiftGen
+  - ViperMcFlurryX
+  - ViperServices (>= 1.1.2)
+
+SPEC REPOS:
+  trunk:
+    - Crashlytics
+    - Fabric
+    - MagicalRecord
+    - OHHTTPStubs
+    - OnDeallocateX
+    - R.swift
+    - R.swift.Library
+    - SwiftGen
+    - SwiftSelfAware
+    - ViperMcFlurrySwiftFix
+    - ViperMcFlurryX
+    - ViperServices
+
+SPEC CHECKSUMS:
+  Crashlytics: 540b7e5f5da5a042647227a5e3ac51d85eed06df
+  Fabric: 706c8b8098fff96c33c0db69cbf81f9c551d0d74
+  MagicalRecord: 53bed74b4323b930992a725be713e53b37d19755
+  OHHTTPStubs: cb29d2a9d09a828ecb93349a2b0c64f99e0db89f
+  OnDeallocateX: b82c694cf591690d71419e9b23e55050e5ff03c6
+  R.swift: 8cbc4fc69b740305b6a17c8a8ed968eb788962d9
+  R.swift.Library: fa85ce1e0d0b7e818cd9e080df910ba54d2776cc
+  SwiftGen: f872ca75cbd17bf7103c17f13dcfa0d9a15667b0
+  SwiftSelfAware: a705d6c80fa1ad64e58274f82b74ffee9cdac2a8
+  ViperMcFlurrySwiftFix: e8590db8c97c431d834974e282549ab2bdb3e9b5
+  ViperMcFlurryX: 3e15d69b4fbdbc996ee790a247a20177fe1f1d54
+  ViperServices: 12fd6a9261abdcb235f537efc28ec3807dcf4f50
+
+PODFILE CHECKSUM: 6abd387de07ff9f6e10df4fdc952c183cd310025
+
+COCOAPODS: 1.8.4
