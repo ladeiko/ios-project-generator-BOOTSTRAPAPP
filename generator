@@ -52,9 +52,6 @@ function usage() {
     echo " * Generate config value"
     echo "  $SCRIPT_NAME config-gen Name Type"    
     echo ""
-    echo " * Build DEBUG version of application and upload it to Hockey"
-    echo "  $SCRIPT_NAME hockey"
-    echo ""
 }
 
 function setupTemplates() {
@@ -214,7 +211,27 @@ case $ACTION in
         if [ "$NAME" == "Root" ]; then
             EXTRA="$EXTRA extended_configurator_create:true"
         fi
-        
+
+        declare -a MCFLURRY_VERSION_OPTIONS
+
+        MCFLURRY_DEFAULT_VERSION="Use ViperMcFlurryX"
+        MCFLURRY_SWIFT_VERSION="Use ViperMcFlurryX_Swift"
+
+        MCFLURRY_VERSION_OPTIONS[${#MCFLURRY_VERSION_OPTIONS[*]}]=$MCFLURRY_DEFAULT_VERSION;
+        MCFLURRY_VERSION_OPTIONS[${#MCFLURRY_VERSION_OPTIONS[*]}]=$MCFLURRY_SWIFT_VERSION;
+        select opt in "${MCFLURRY_VERSION_OPTIONS[@]}"; do
+            case $opt in
+                $MCFLURRY_DEFAULT_VERSION )
+                    EXTRA="$EXTRA mcflurry_swift:true"
+                    break
+                    ;;
+
+                $MCFLURRY_SWIFT_VERSION )
+                    break
+                    ;;
+            esac
+        done
+
         (cd "$THIS_SCRIPT_PATH" && generamba gen "$NAME" "$TEMPLATE" --custom_parameters extended_configure:true extended_configure_vars:services=Services embeddable_extended_configure_vars:services=Services $EXTRA)
 
         replaceTextInFile ':[[:space:]]*class ' ': Presenter ' "$THIS_SCRIPT_PATH/BOOTSTRAPAPP/Sources/Modules/$NAME/Presenter/${NAME}ModuleInput.swift"
@@ -351,39 +368,6 @@ case $ACTION in
 
     test)
         ( cd "$THIS_SCRIPT_PATH" && xcodebuild test -scheme BOOTSTRAPAPP_Debug -workspace BOOTSTRAPAPP.xcworkspace/ -destination 'platform=iOS Simulator,name=iPhone 8' )
-    ;;
-
-    hockey)
-        rm -rf "$THIS_SCRIPT_PATH/.build"
-        mkdir -p "$THIS_SCRIPT_PATH/.build"
-        [ -f "$THIS_SCRIPT_PATH/.team_id" ] || { echo "ERROR: File $THIS_SCRIPT_PATH/.team_id not found"; exit 1; }
-        TEAM_ID=$(cat "$THIS_SCRIPT_PATH/.team_id")
-        [ -n "$TEAM_ID" ] || { echo "ERROR: Invalid team id"; exit 1; }
-        cat > "$THIS_SCRIPT_PATH/.build/exportOptions.plist" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>method</key>
-    <string>ad-hoc</string>
-    <key>teamID</key>
-    <string>$TEAM_ID</string>
-    <key>compileBitcode</key>
-    <false/>
-    <key>thinning</key>
-	<string>&lt;none&gt;</string>
-    <key>stripSwiftSymbols</key>
-	<true/>
-</dict>
-</plist>
-EOF
-        ( cd "$THIS_SCRIPT_PATH" && xcodebuild archive -scheme BOOTSTRAPAPP_Debug -workspace BOOTSTRAPAPP.xcworkspace/ -sdk iphoneos -archivePath "$THIS_SCRIPT_PATH/.build/BOOTSTRAPAPP.xcarchive" || { rm -rf "$THIS_SCRIPT_PATH/.build"; exit 1; } )
-        ( cd "$THIS_SCRIPT_PATH" && xcodebuild -exportArchive -archivePath "$THIS_SCRIPT_PATH/.build/BOOTSTRAPAPP.xcarchive" -exportOptionsPlist "$THIS_SCRIPT_PATH/.build/exportOptions.plist" -exportPath "$THIS_SCRIPT_PATH/.build" || { rm -rf "$THIS_SCRIPT_PATH/.build"; exit 1; } )
-        command -v puck || { echo "ERROR: puck not found"; exit 1; }
-        [ -f "$THIS_SCRIPT_PATH/.hockey_api_token" ] || { echo "ERROR: File $THIS_SCRIPT_PATH/.hockey_api_token not found"; exit 1; }
-        HOCKEY_API_TOKEN=$(cat "$THIS_SCRIPT_PATH/.hockey_api_token")
-        [ -n "$TEAM_ID" ] || { echo "ERROR: Invalid hockey api token"; exit 1; }
-        puck -force=false -api_token=$HOCKEY_API_TOKEN -notify=true "$THIS_SCRIPT_PATH/.build/BOOTSTRAPAPP_Debug.ipa"
     ;;
 
     help | *)

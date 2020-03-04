@@ -35,6 +35,7 @@ podfile_path: Podfile
 ### Templates
 templates:
 - {name: default, git: 'https://github.com/ladeiko/SwiftyViperTemplates.git'}
+- {name: default_swiftui, git: 'https://github.com/ladeiko/SwiftyViperTemplates.git'}
 - {name: container, git: 'https://github.com/ladeiko/SwiftyViperTemplates.git'}
 - {name: tabbar, git: 'https://github.com/ladeiko/SwiftyViperTemplates.git'}
 - {name: alert, git: 'https://github.com/ladeiko/SwiftyViperTemplates.git'}
